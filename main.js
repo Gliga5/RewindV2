@@ -2,19 +2,30 @@ import kaboom from "https://unpkg.com/kaboom@3000.0.1/dist/kaboom.mjs";
 
 const k = kaboom({
 	width: 800,
-	height: 600,
+	height: 600
 })
 
 k.loadSprite("bean", "sprites/bean.png")
 
 const SPEED = 200
 
-const iterations = []
+const iterations = [[]]
+const doneIter = []
 
 k.scene("game", () => {
 	k.setGravity(2000)
 
-	for (const iter of iterations) {
+	const door = k.add([
+		k.rect(70, 100),
+		k.outline(4),
+		k.pos(100, k.height() - 48),
+		k.anchor("bot"),
+		k.color(k.CYAN),
+		k.z(-3),
+		k.area(),
+	])
+
+	for (const iter of iterations.slice(0, -1)) {
 		const clone = k.add([
 			k.pos(100, k.height() - 48),
 			k.sprite("bean"),
@@ -25,18 +36,26 @@ k.scene("game", () => {
 			"player"
 		])
 
-		let i = 1;
+		let i = 0
 		clone.onUpdate(() => {
-			if (iter[i] == null) {
-				k.addKaboom(clone.pos)
-				k.destroy(clone)
+			if (iter[i] == "REWIND") {
+				if (clone.isColliding(door)) {
+					k.destroy(clone)
+					k.debug.log("done")
+					doneIter.push(true)
+				} else {
+					k.debug.log("paradox")
+				}
+
 				return;
 			} else if (iter[i] == "RIGHT") {
 				clone.move(SPEED, 0)
 			} else if (iter[i] == "LEFT") {
 				clone.move(-SPEED, 0)
 			} else if (iter[i] == "JUMP") {
-				clone.jump(600)
+				if (clone.isGrounded()) {
+					clone.jump(600)
+				}
 			}
 			i++;
 		})
@@ -51,7 +70,6 @@ k.scene("game", () => {
 		k.body(),
 		"player"
 	])
-	iterations.push([]);
 
 	player.onUpdate(() => {
 		iterations[iterations.length - 1].push("")
@@ -59,25 +77,28 @@ k.scene("game", () => {
 
 	k.onKeyDown("right", () => {
 		player.move(SPEED, 0)
-		iterations[iterations.length - 1].pop()
-		iterations[iterations.length - 1].push("RIGHT")
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "RIGHT"
 	})
 	k.onKeyDown("left", () => {
 		player.move(-SPEED, 0)
-		iterations[iterations.length - 1].pop()
-		iterations[iterations.length - 1].push("LEFT")
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "LEFT"
 	})
 	k.onKeyDown("up", () => {
 		if (player.isGrounded()) {
 			player.jump(600)
-			iterations[iterations.length - 1].pop()
-			iterations[iterations.length - 1].push("JUMP")
+			iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "JUMP"
 		}
 	})
+
 	k.onKeyPress("space", () => {
+		if (!player.isColliding(door) || doneIter.length < iterations.length - 1) return
+
 		k.debug.log("rewind")
-		k.addKaboom(player.pos)
-		k.go("game")
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "REWIND"
+		iterations.push([])
+		doneIter.length = 0
+
+		k.go('game')
 	})
 
 	const button = k.add([
@@ -89,32 +110,28 @@ k.scene("game", () => {
 		k.area(),
 	])
 
-
-	let collided = false;
 	const tower = k.add([
 		k.rect(150, 20),
 		k.outline(4),
 		k.area(),
 		k.pos(450, k.height() - 48),
-		// Give objects a body() component if you don't want other solid objects pass through
 		k.body({ isStatic: true }),
 		k.anchor("bot"),
 	])
 
-	button.onCollide("player", () => {
-		collided = true
-	})
-	button.onCollideEnd("player", () => {
-		collided = false
+	let pressed = false
+
+	button.onCollideUpdate('player', () => {
+		pressed = true
 	})
 
 	button.onUpdate(() => {
-		if (collided && tower.pos.y > 200) {
+		if (pressed && tower.pos.y > 200) {
 			tower.move(0, -200)
-		} else if (!collided && tower.pos.y < k.height() - 48) {
+		} else if (!pressed && tower.pos.y < k.height() - 49) {
 			tower.move(0, 200)
 		}
-
+		pressed = false
 	})
 
 	k.add([
@@ -122,7 +139,6 @@ k.scene("game", () => {
 		k.outline(4),
 		k.area(),
 		k.pos(2, k.height() - 48),
-		// Give objects a body() component if you don't want other solid objects pass through
 		k.body({ isStatic: true }),
 	])
 
@@ -131,7 +147,6 @@ k.scene("game", () => {
 		k.outline(4),
 		k.area(),
 		k.pos(2, 170),
-		// Give objects a body() component if you don't want other solid objects pass through
 		k.body({ isStatic: true }),
 	])
 
@@ -146,16 +161,9 @@ k.scene("game", () => {
 		"win"
 	])
 
-	k.add([
-		k.rect(70, 100),
-		k.outline(4),
-		k.pos(100, k.height() - 48),
-		k.anchor("bot"),
-		k.color(k.CYAN),
-		k.z(-3)
-	])
+	k.onCollideUpdate("win", "player", () => {
+		if (k.get("player").length > 1) return
 
-	k.onCollide("win", "player", () => {
 		k.debug.log("win")
 	});
 })
