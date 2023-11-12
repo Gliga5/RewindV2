@@ -9,7 +9,7 @@ k.loadSprite("bean", "sprites/bean.png")
 
 const SPEED = 200
 
-const iterations = [[]]
+const iterations = [[[]]]
 
 k.scene("game", ({ firstTime }) => {
 	k.setGravity(2000)
@@ -146,7 +146,7 @@ k.scene("game", ({ firstTime }) => {
 
 		k.debug.log("rewind")
 		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1].push("REWIND")
-		iterations.push([])
+		iterations.push([[]])
 
 		k.destroy(player)
 		if (k.get('player').length == 0) {
