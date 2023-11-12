@@ -10,10 +10,10 @@ k.loadSprite("bean", "sprites/bean.png")
 const SPEED = 200
 
 const iterations = [[]]
-const doneIter = []
 
-k.scene("game", () => {
+k.scene("game", ({ firstTime }) => {
 	k.setGravity(2000)
+	if (!firstTime) k.shake(20)
 
 	const door = k.add([
 		k.rect(70, 100),
@@ -31,30 +31,60 @@ k.scene("game", () => {
 			k.sprite("bean"),
 			k.anchor("center"),
 			k.z(-2),
-			k.area({ collisionIgnore: ["player"] }),
+			k.area({
+				collisionIgnore: ["player"], shape: new k.Polygon([
+					k.vec2(-61 / 2 + 10, 53 / 2 - 10),
+					k.vec2(-61 / 2, 10),
+					k.vec2(-61 / 2, -10),
+					k.vec2(-61 / 2 + 10, -53 / 2 + 10),
+					k.vec2(-10, -53 / 2),
+					k.vec2(10, -53 / 2),
+					k.vec2(61 / 2 - 10, -53 / 2 + 10),
+					k.vec2(61 / 2, -10),
+					k.vec2(61 / 2, 10),
+					k.vec2(61 / 2 - 10, 53 / 2 - 10),
+					k.vec2(10, 53 / 2),
+					k.vec2(-10, 53 / 2),
+				])
+			}),
 			k.body(),
 			"player"
 		])
 
 		let i = 0
-		clone.onUpdate(() => {
-			if (iter[i] == "REWIND") {
-				if (clone.isColliding(door)) {
-					k.destroy(clone)
-					k.debug.log("done")
-					doneIter.push(true)
-				} else {
-					k.debug.log("paradox")
-				}
+		clone.onUpdate(async () => {
+			for (const newIter of iter[i]) {
+				if (newIter == "REWIND") {
+					if (clone.isColliding(door)) {
+						k.destroy(clone)
+						if (k.get('player').length == 0) {
+							k.shake(20)
+							await k.wait(1)
+							k.go('game', { firstTime: false })
+						}
+					} else {
+						k.debug.log("paradox")
+						k.shake(50)
+						for (const p of k.get("player")) {
+							k.addKaboom(p.pos)
+						}
+						k.destroyAll("player")
+					}
 
-				return;
-			} else if (iter[i] == "RIGHT") {
-				clone.move(SPEED, 0)
-			} else if (iter[i] == "LEFT") {
-				clone.move(-SPEED, 0)
-			} else if (iter[i] == "JUMP") {
-				if (clone.isGrounded()) {
-					clone.jump(600)
+					return;
+				} else if (newIter == "RIGHT") {
+					if (clone.pos.x < 800 - 61 / 2) {
+						clone.move(SPEED, 0)
+					}
+
+				} else if (newIter == "LEFT") {
+					if (clone.pos.x > 61 / 2) {
+						clone.move(-SPEED, 0)
+					}
+				} else if (newIter == "JUMP") {
+					if (clone.isGrounded()) {
+						clone.jump(600)
+					}
 				}
 			}
 			i++;
@@ -66,39 +96,65 @@ k.scene("game", () => {
 		k.sprite("bean"),
 		k.anchor("center"),
 		k.z(-1),
-		k.area({ collisionIgnore: ["player"] }),
+		k.area({
+			collisionIgnore: ["player"], shape: new k.Polygon([
+				k.vec2(-61 / 2 + 10, 53 / 2 - 10),
+				k.vec2(-61 / 2, 10),
+				k.vec2(-61 / 2, -10),
+				k.vec2(-61 / 2 + 10, -53 / 2 + 10),
+				k.vec2(-10, -53 / 2),
+				k.vec2(10, -53 / 2),
+				k.vec2(61 / 2 - 10, -53 / 2 + 10),
+				k.vec2(61 / 2, -10),
+				k.vec2(61 / 2, 10),
+				k.vec2(61 / 2 - 10, 53 / 2 - 10),
+				k.vec2(10, 53 / 2),
+				k.vec2(-10, 53 / 2),
+			])
+		}),
 		k.body(),
 		"player"
 	])
 
 	player.onUpdate(() => {
-		iterations[iterations.length - 1].push("")
+		iterations[iterations.length - 1].push([])
 	})
 
-	k.onKeyDown("right", () => {
+	player.onKeyDown("right", () => {
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1].push("RIGHT")
+
+		if (player.pos.x >= 800 - 61 / 2) return
+
 		player.move(SPEED, 0)
-		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "RIGHT"
 	})
-	k.onKeyDown("left", () => {
+	player.onKeyDown("left", () => {
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1].push("LEFT")
+
+		if (player.pos.x <= 61 / 2) return
+
 		player.move(-SPEED, 0)
-		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "LEFT"
 	})
-	k.onKeyDown("up", () => {
+	player.onKeyDown("up", () => {
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1].push("JUMP")
 		if (player.isGrounded()) {
 			player.jump(600)
-			iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "JUMP"
 		}
 	})
 
-	k.onKeyPress("space", () => {
-		if (!player.isColliding(door) || doneIter.length < iterations.length - 1) return
+	player.onKeyPress("space", async () => {
+		if (!player.isColliding(door)) return
 
 		k.debug.log("rewind")
-		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1] = "REWIND"
+		iterations[iterations.length - 1][(iterations[iterations.length - 1]).length - 1].push("REWIND")
 		iterations.push([])
-		doneIter.length = 0
 
-		k.go('game')
+		k.destroy(player)
+		if (k.get('player').length == 0) {
+			k.shake(20)
+			await k.wait(1)
+			k.go('game', { firstTime: false })
+		}
+
 	})
 
 	const button = k.add([
@@ -129,16 +185,21 @@ k.scene("game", () => {
 		if (pressed && tower.pos.y > 200) {
 			tower.move(0, -200)
 		} else if (!pressed && tower.pos.y < k.height() - 49) {
-			tower.move(0, 200)
+			let ct = 0
+			const allPlayers = k.get("player")
+			for (const p of allPlayers) {
+				if (!p.checkCollision(tower)?.displacement?.y != 0) ct++
+			}
+			if (ct == allPlayers.length) tower.move(0, 200)
 		}
 		pressed = false
 	})
 
 	k.add([
-		k.rect(k.width() - 4, 46),
+		k.rect(k.width() + 4, 50),
 		k.outline(4),
 		k.area(),
-		k.pos(2, k.height() - 48),
+		k.pos(-2, k.height() - 48),
 		k.body({ isStatic: true }),
 	])
 
@@ -146,7 +207,7 @@ k.scene("game", () => {
 		k.rect(300, 46),
 		k.outline(4),
 		k.area(),
-		k.pos(2, 170),
+		k.pos(-2, 170),
 		k.body({ isStatic: true }),
 	])
 
@@ -164,8 +225,10 @@ k.scene("game", () => {
 	k.onCollideUpdate("win", "player", () => {
 		if (k.get("player").length > 1) return
 
+		k.destroy(player)
+		k.shake(20)
 		k.debug.log("win")
 	});
 })
 
-k.go("game")
+k.go("game", { firstTime: true })
